@@ -10,7 +10,6 @@
  * http://www.gnu.org/copyleft/lesser.html
  * @author     Ushahidi Team <team@ushahidi.com>
  * @package    Ushahidi - http://source.ushahididev.com
- * @category   Helpers
  * @copyright  Ushahidi - http://www.ushahidi.com
  * @license    http://www.gnu.org/copyleft/lesser.html GNU Lesser General Public License (LGPL)
  */
@@ -42,13 +41,44 @@ class reports_Core {
 		
 		$post->add_rules('incident_title','required', 'length[3,200]');
 		$post->add_rules('incident_description','required');
-		$post->add_rules('incident_date','required','date_mmddyyyy');
-		$post->add_rules('incident_hour','required','between[1,12]');
-		$post->add_rules('incident_minute','required','between[0,59]');
+		$post->add_rules('incident_date_start','required','date_mmddyyyy');
+		$post->add_rules('incident_date_end','required','date_mmddyyyy');
+		$post->add_rules('incident_hour_start','required','between[1,12]');
+		$post->add_rules('incident_minute_start','required','between[0,59]');
+		$post->add_rules('incident_hour_end','required','between[1,12]');
+		$post->add_rules('incident_minute_end','required','between[0,59]');
 			
-		if ($post->incident_ampm != "am" AND $post->incident_ampm != "pm")
+		if ($post->incident_ampm_start != "am" AND $post->incident_ampm_start != "pm")
 		{
-			$post->add_error('incident_ampm','values');
+			$post->add_error('incident_ampm_start','values');
+		}
+		
+		if ($post->incident_ampm_end != "am" AND $post->incident_ampm_end != "pm")
+		{
+			$post->add_error('incident_ampm_end','values');
+		}
+		
+		# validación de duración del evento
+		# Incident Start
+		$incident_date_start=explode("/",$post->incident_date_start);
+		// Where the $_POST['date'] is a value posted by form in mm/dd/yyyy format
+		$incident_date_start_day = $incident_date_start[1];
+		$incident_date_start_month = $incident_date_start[0];
+		$incident_date_start_year = $incident_date_start[2];
+		
+		# Incident End
+		$incident_date_end=explode("/",$post->incident_date_end);
+		// Where the $_POST['date'] is a value posted by form in mm/dd/yyyy format
+		$incident_date_end_day = $incident_date_end[1];
+		$incident_date_end_month = $incident_date_end[0];
+		$incident_date_end_year = $incident_date_end[2];
+		
+		if (($incident_date_end_day - $incident_date_start_day) >= 4)
+		{
+			// print Kohana::debug(($incident_date_end_day - $incident_date_start_day) >= 4);
+			$post->incident_date_end = "";
+			$post->add_error('incident_date_end','required');
+			// print Kohana::debug($post->validate());
 		}
 			
 		// Validate for maximum and minimum latitude values
@@ -92,17 +122,7 @@ class reports_Core {
 				}
 			}
 		}
-		
-		// If deployment is a single country deployment, check that the location mapped is in the default country
-		if ( ! Kohana::config('settings.multi_country'))
-		{
-			$country = Country_Model::get_country_by_name($post->country_name);
-			if ($country AND $country->id != Kohana::config('settings.default_country'))
-			{
-				$post->add_error('country_name','single_country');
-			}
-		}
-		
+
 		// Validate photo uploads
 		$post->add_rules('incident_photo', 'upload::valid', 'upload::type[gif,jpg,png]', 'upload::size[2M]');
 
@@ -130,6 +150,8 @@ class reports_Core {
 			$post->add_rules('message_id','numeric');
 			$post->add_rules('incident_active','required', 'between[0,1]');
 			$post->add_rules('incident_verified','required', 'between[0,1]');
+			$post->add_rules('incident_source','numeric', 'length[1,1]');
+			$post->add_rules('incident_information','numeric', 'length[1,1]');
 			$post->add_rules('incident_zoom', 'numeric');
 		}
 		
@@ -162,10 +184,10 @@ class reports_Core {
 		// Load the country
 		$country = isset($post->country_name)
 			? Country_Model::get_country_by_name($post->country_name)
-			: new Country_Model(Kohana::config('settings.default_country'));
-			
+			: Country_Model::get_country_by_name(Kohana::config('settings.default_country'));
+		
 		// Fetch the country id
-		$country_id = ( ! empty($country) AND $country->loaded)? $country->id : 0;
+		$country_id = ($country)? $country->id : 0;
 		
 		// Assign country_id retrieved
 		$post->country_id = $country_id;
@@ -232,12 +254,21 @@ class reports_Core {
 		$incident->incident_title = $post->incident_title;
 		$incident->incident_description = $post->incident_description;
 
-		$incident_date=explode("/",$post->incident_date);
+		# Incident Start
+		$incident_date_start=explode("/",$post->incident_date_start);
 		// Where the $_POST['date'] is a value posted by form in mm/dd/yyyy format
-		$incident_date=$incident_date[2]."-".$incident_date[0]."-".$incident_date[1];
+		$incident_date_start=$incident_date_start[2]."-".$incident_date_start[0]."-".$incident_date_start[1];
 
-		$incident_time = $post->incident_hour . ":" . $post->incident_minute . ":00 " . $post->incident_ampm;
-		$incident->incident_date = date( "Y-m-d H:i:s", strtotime($incident_date . " " . $incident_time) );
+		$incident_time_start = $post->incident_hour_start . ":" . $post->incident_minute_start . ":00 " . $post->incident_ampm_start;
+		$incident->incident_date_start = date( "Y-m-d H:i:s", strtotime($incident_date_start . " " . $incident_time_start) );
+		
+		# Incident End
+		$incident_date_end=explode("/",$post->incident_date_end);
+		// Where the $_POST['date'] is a value posted by form in mm/dd/yyyy format
+		$incident_date_end=$incident_date_end[2]."-".$incident_date_end[0]."-".$incident_date_end[1];
+
+		$incident_time_end = $post->incident_hour_end . ":" . $post->incident_minute_end . ":00 " . $post->incident_ampm_end;
+		$incident->incident_date_end = date( "Y-m-d H:i:s", strtotime($incident_date_end . " " . $incident_time_end) );
 				
 		
 		// Is this an Email, SMS, Twitter submitted report?
@@ -265,15 +296,28 @@ class reports_Core {
 			}
 		}
 		
-		// Approval Status
-		if (isset($post->incident_active))
+		// Check for incident evaluation info
+		if ( ! empty($post->incident_active))
 		{
 			$incident->incident_active = $post->incident_active;
 		}
+		
 		// Verification status
-		if (isset($post->incident_verified))
+		if ( ! empty($post->incident_verified))
 		{
 			$incident->incident_verified = $post->incident_verified;
+		}
+		
+		// Incident source
+		if ( ! empty($post->incident_source))
+		{
+			$incident->incident_source = $post->incident_source;
+		}
+		
+		// Incident information
+		if ( ! empty($post->incident_information))
+		{
+			$incident->incident_information = $post->incident_information;
 		}
 		
 		// Incident zoom
@@ -281,6 +325,7 @@ class reports_Core {
 		{
 			$incident->incident_zoom = intval($post->incident_zoom);
 		}
+		
 		// Tag this as a report that needs to be sent out as an alert
 		if ($incident->incident_active == 1 AND $incident->incident_alert_status != 2)
 		{ 
@@ -304,6 +349,7 @@ class reports_Core {
 	 * @param mixed $post
 	 * @param mixed $verify Instance of the verify model
 	 * @param mixed $incident
+	 *
 	 */
 	public static function verify_approve($post, $verify, $incident)
 	{
@@ -388,6 +434,7 @@ class reports_Core {
 	 *
 	 * @param mixed $post
 	 * @param mixed $incident_model
+	 *
 	 */
 	public static function save_category($post, $incident)
 	{
@@ -450,7 +497,7 @@ class reports_Core {
 		$i = 1;
 		foreach ($filenames as $filename)
 		{
-			$new_filename = $incident->id.'_'.$i.'_'.time();
+			$new_filename = $incident->id . "_" . $i . "_" . time();
 
 			$file_type = strrev(substr(strrev($filename),0,4));
 					
@@ -462,32 +509,11 @@ class reports_Core {
 
 			// Medium size
 			Image::factory($filename)->resize(400,300,Image::HEIGHT)
-				->save(Kohana::config('upload.directory', TRUE).$new_filename.'_m'.$file_type);
+				->save(Kohana::config('upload.directory', TRUE).$new_filename."_m".$file_type);
 					
 			// Thumbnail
 			Image::factory($filename)->resize(89,59,Image::HEIGHT)
-				->save(Kohana::config('upload.directory', TRUE).$new_filename.'_t'.$file_type);
-				
-			// Name the files for the DB
-			$media_link = $new_filename.$file_type;
-			$media_medium = $new_filename.'_m'.$file_type;
-			$media_thumb = $new_filename.'_t'.$file_type;
-				
-			// Okay, now we have these three different files on the server, now check to see
-			//   if we should be dropping them on the CDN
-			
-			if (Kohana::config("cdn.cdn_store_dynamic_content"))
-			{
-				$media_link = cdn::upload($media_link);
-				$media_medium = cdn::upload($media_medium);
-				$media_thumb = cdn::upload($media_thumb);
-				
-				// We no longer need the files we created on the server. Remove them.
-				$local_directory = rtrim(Kohana::config('upload.directory', TRUE), '/').'/';
-				unlink($local_directory.$new_filename.$file_type);
-				unlink($local_directory.$new_filename.'_m'.$file_type);
-				unlink($local_directory.$new_filename.'_t'.$file_type);
-			}
+				->save(Kohana::config('upload.directory', TRUE).$new_filename."_t".$file_type);
 
 			// Remove the temporary file
 			unlink($filename);
@@ -497,9 +523,9 @@ class reports_Core {
 			$photo->location_id = $incident->location_id;
 			$photo->incident_id = $incident->id;
 			$photo->media_type = 1; // Images
-			$photo->media_link = $media_link;
-			$photo->media_medium = $media_medium;
-			$photo->media_thumb = $media_thumb;
+			$photo->media_link = $new_filename.$file_type;
+			$photo->media_medium = $new_filename."_m".$file_type;
+			$photo->media_thumb = $new_filename."_t".$file_type;
 			$photo->media_date = date("Y-m-d H:i:s",time());
 			$photo->save();
 			$i++;
@@ -577,7 +603,7 @@ class reports_Core {
 	 * @param $paginate Optionally paginate the incidents - Default is FALSE
 	 * @return Database_Result
 	 */
-	public static function fetch_incidents($paginate = FALSE, $items_per_page = 0)
+	public static function fetch_incidents($paginate = FALSE)
 	{
 		// Reset the paramters
 		self::$params = array();
@@ -822,66 +848,7 @@ class reports_Core {
 			);
 		}
 		
-		//
-		// Check if they're filtering over custom form fields
-		//
-		if (isset($url_data['cff']) AND is_array($url_data['cff']))
-		{
-			$where_text = "";
-			$i = 0;
-			foreach ($url_data['cff'] as $field)
-			{			
-				$field_id = $field[0];
-				if (intval($field_id) < 1)
-					continue;
-
-				$field_value = $field[1];
-				if (is_array($field_value))
-				{
-					$field_value = implode(",", $field_value);
-				}
-								
-				$i++;
-				if ($i > 1)
-				{
-					$where_text .= " OR ";
-				}
-				
-				$where_text .= "(form_field_id = ".intval($field_id)
-					. " AND form_response = '".Database::instance()->escape_str(trim($field_value))."')";
-			}
-			
-			// Make sure there was some valid input in there
-			if ($i > 0)
-			{
-				// I run a database query here because it's way faster to get the valid IDs in a seperate database query than it is
-				//to run this query nested in the main query. 
-				$db = new Database();
-				$rows = $db->query('SELECT DISTINCT incident_id FROM '.$table_prefix.'form_response WHERE '.$where_text);
-				$incident_ids = '';
-				foreach($rows as $row)
-				{
-					if($incident_ids != ''){$incident_ids .= ',';}
-					$incident_ids .= $row->incident_id;
-				}
-				//make sure there are IDs found
-				if($incident_ids != '')
-				{
-					array_push(self::$params, 'i.id IN ('.$incident_ids.')');
-				}
-				else
-				{
-					array_push(self::$params, 'i.id IN (0)');
-				}
-			}
-			
-		} // End of handling cff
-		
-		// In case a plugin or something wants to get in on the parameter fetching fun
-		Event::run('ushahidi_filter.fetch_incidents_set_params', self::$params);
-		
 		//> END PARAMETER FETCH
-
 		
 		// Fetch all the incidents
 		$all_incidents = Incident_Model::get_incidents(self::$params);
@@ -889,12 +856,11 @@ class reports_Core {
 		if ($paginate)
 		{
 			// Set up pagination
-			$page_limit = (intval($items_per_page) > 0)? $items_per_page : intval (Kohana::config('settings.items_per_page'));
-			
+			// Pagination
 			$pagination = new Pagination(array(
 					'style' => 'front-end-reports',
 					'query_string' => 'page',
-					'items_per_page' => $page_limit,
+					'items_per_page' => (int) Kohana::config('settings.items_per_page'),
 					'total_items' => $all_incidents->count()
 					));
 			

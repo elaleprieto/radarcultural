@@ -77,8 +77,12 @@ class Reports_Controller extends Main_Controller {
 
 		if ($category->loaded)
 		{
+			$translated_title = Category_Lang_Model::category_title($category_id,$l);
+			
 			// Set the category title
-			$this->template->content->category_title = Category_Lang_Model::category_title($category_id,$l);
+			$this->template->content->category_title = ($translated_title)
+				? $translated_title
+				: $category->category_title;
 		}
 		else
 		{
@@ -92,25 +96,10 @@ class Reports_Controller extends Main_Controller {
 		$total_reports = Incident_Model::get_total_reports(TRUE);
 
 		// Get the date of the oldest report
-		if (isset($_GET['s']) AND !empty($_GET['s']) AND intval($_GET['s']) > 0)
-		{
-			$oldest_timestamp =  intval($_GET['s']);
-		}
-		else
-		{
-			$oldest_timestamp = Incident_Model::get_oldest_report_timestamp();
-		}
+		$oldest_timestamp = Incident_Model::get_oldest_report_timestamp();
 		
-		//Get the date of the latest report
-		if (isset($_GET['e']) AND !empty($_GET['e']) AND intval($_GET['e']) > 0)
-		{
-			$latest_timestamp = intval($_GET['e']);
-		}
-		else
-		{
-			$latest_timestamp = Incident_Model::get_latest_report_timestamp();
-		}
-
+		// Get the date of the latest report
+		$latest_timestamp = Incident_Model::get_latest_report_timestamp();
 
 		// Round the number of days up to the nearest full day
 		$days_since = ceil((time() - $oldest_timestamp) / 86400);
@@ -124,9 +113,6 @@ class Reports_Controller extends Main_Controller {
 		$this->template->content->category_tree_view = category::get_category_tree_view();
 		
 		// Additional view content
-		$this->template->content->custom_forms_filter = new View('reports_submit_custom_forms');
-		$disp_custom_fields = customforms::get_custom_form_fields();		
-		$this->template->content->custom_forms_filter->disp_custom_fields = $disp_custom_fields;
 		$this->template->content->oldest_timestamp = $oldest_timestamp;
 		$this->template->content->latest_timestamp = $latest_timestamp;
 		$this->template->content->report_stats->total_reports = $total_reports;
@@ -175,7 +161,12 @@ class Reports_Controller extends Main_Controller {
 				$ct = (string)$category->category_title;
 				if ( ! isset($localized_categories[$ct]))
 				{
-					$localized_categories[$ct] = Category_Lang_Model::category_title($category->id, $locale);
+					$translated_title = Category_Lang_Model::category_title($category->id, $locale);
+					$localized_categories[$ct] = $category->category_title;
+					if ($translated_title)
+					{
+						$localized_categories[$ct] = $translated_title;
+					}
 				}
 			}
 		}
@@ -258,10 +249,13 @@ class Reports_Controller extends Main_Controller {
 		$this->template->api_url = Kohana::config('settings.api_url');
 
 		// Setup and initialize form field names
-		$form = array(
+		$form = array
+		(
 			'incident_title' => '',
 			'incident_description' => '',
-			'incident_date' => '',
+			// 'incident_date' => '',
+			'incident_date_start' => '',
+			'incident_date_end' => '',
 			'incident_hour' => '',
 			'incident_minute' => '',
 			'incident_ampm' => '',
@@ -275,7 +269,6 @@ class Reports_Controller extends Main_Controller {
 			'incident_news' => array(),
 			'incident_video' => array(),
 			'incident_photo' => array(),
-			'incident_zoom' => intval(Kohana::config('settings.default_zoom')),
 			'person_first' => '',
 			'person_last' => '',
 			'person_email' => '',
@@ -290,7 +283,9 @@ class Reports_Controller extends Main_Controller {
 		$form_saved = ($saved == 'saved');
 
 		// Initialize Default Values
-		$form['incident_date'] = date("m/d/Y",time());
+		// $form['incident_date'] = date("m/d/Y",time());
+		$form['incident_date_start'] = date("m/d/Y",time());
+		$form['incident_date_end'] = date("m/d/Y",time());
 		$form['incident_hour'] = date('g');
 		$form['incident_minute'] = date('i');
 		$form['incident_ampm'] = date('a');
@@ -348,18 +343,8 @@ class Reports_Controller extends Main_Controller {
 
 				// Action::report_add/report_submit - Added a New Report
 				//++ Do we need two events for this? Or will one suffice?
-				//ETHERTON: Yes. Those of us who often write plugins for
-				//Ushahidi would like to have access to the $post arrays
-				//and the report object. Back in the day we even had access
-				//to the $post object, so if our plugins didn't get the 
-				//appropriate input we could raise an error, but alas,
-				//those days are gone. Now I suppose you could do something
-				//like Event::run('ushahidi_action.report_add', array($post, $incident));
-				//but for the sake of backward's compatibility, please don't
-				//Thanks.
-				Event::run('ushahidi_action.report_submit', $post);
 				Event::run('ushahidi_action.report_add', $incident);
-				
+				Event::run('ushahidi_action.report_submit', $post);
 
 				url::redirect('reports/thanks');
 			}
@@ -373,6 +358,7 @@ class Reports_Controller extends Main_Controller {
 				// Populate the error fields, if any
 				$errors = arr::overwrite($errors, $post->errors('report'));
 				$form_error = TRUE;
+				// print Kohana::debug($errors);
 			}
 		}
 
@@ -463,7 +449,8 @@ class Reports_Controller extends Main_Controller {
 			// Comment Post?
 			// Setup and initialize form field names
 
-			$form = array(
+			$form = array
+			(
 				'comment_author' => '',
 				'comment_description' => '',
 				'comment_email' => '',
@@ -665,10 +652,7 @@ class Reports_Controller extends Main_Controller {
 				}
 				elseif ($media->media_type == 1)
 				{
-					$incident_photo[] = array(
-											'large' => url::convert_uploaded_to_abs($media->media_link),
-											'thumb' => url::convert_uploaded_to_abs($media->media_thumb)
-											);
+					$incident_photo[] = $media->media_link;
 				}
 			}
 
