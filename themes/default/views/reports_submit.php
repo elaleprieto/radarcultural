@@ -52,7 +52,7 @@
 					<h4><?php echo Kohana::lang('ui_main.reports_description'); ?></h4>
 					<?php print form::textarea('incident_description', $form['incident_description'], ' rows="10" class="textarea long" ') ?>
 				</div>
-				<div class="report_row" id="datetime_default">
+				<div class="report_row hide" id="datetime_default">
 					<h4>
 						<a href="#" id="date_toggle" class="show-more"><?php echo Kohana::lang('ui_main.modify_date'); ?></a>
 						<?php echo Kohana::lang('ui_main.date_time'); ?>: 
@@ -63,7 +63,7 @@
 						<?php endif; ?>
 					</h4>
 				</div>
-				<div class="report_row hide" id="datetime_edit">
+				<div class="report_row" id="datetime_edit">
 					<div class="date-box">
 						<h4><?php echo Kohana::lang('ui_main.reports_date_start'); ?></h4>
 						<?php print form::input('incident_date_start', $form['incident_date_start'], ' class="text short"'); ?>
